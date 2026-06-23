@@ -23,39 +23,58 @@ const HANDLE_CURSOR: Record<string, string> = {
 }
 
 interface RegionSelectorProps {
-  region: Region
+  region: Region | null
   onPointerDown: (e: React.PointerEvent, handle: string) => void
+  onCreate: (e: React.PointerEvent) => void
+  onReset: () => void
   screenWidth: number
   screenHeight: number
 }
 
-export function RegionSelector({
-  region,
-  onPointerDown,
-  screenWidth,
-  screenHeight,
-}: RegionSelectorProps) {
+function Handle({ handle, region, onPointerDown }: { handle: string; region: Region; onPointerDown: (e: React.PointerEvent, handle: string) => void }) {
+  const pos = getHandlePos(handle, region)
+  const isCorner = handle.includes("-")
+  const size = 14
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-[90]"
+      className="absolute z-10"
       style={{
-        cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='28'%3E%3Cpath d='M2 2 L2 22 L8 16 L12 24 L14 22 L10 14 L20 14 Z' fill='white' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 2 2, crosshair`,
+        cursor: HANDLE_CURSOR[handle],
+        width: size,
+        height: size,
+        left: pos.x - size / 2,
+        top: pos.y - size / 2,
+        borderRadius: isCorner ? "50%" : 0,
+        backgroundColor: isCorner ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.5)",
+        boxShadow: "0 0 0 2px white",
       }}
-    >
-      <svg
-        className="pointer-events-auto absolute inset-0 size-full"
-        style={{ cursor: "inherit" }}
+      onPointerDown={(e) => onPointerDown(e, handle)}
+    />
+  )
+}
+
+export function RegionSelector({ region, onPointerDown, onCreate, onReset, screenWidth, screenHeight }: RegionSelectorProps) {
+  if (!region) {
+    return (
+      <div
+        className="fixed inset-0 z-[90] flex cursor-crosshair items-center justify-center bg-black/30"
+        onPointerDown={onCreate}
       >
+        <div className="pointer-events-none rounded-xl border border-dashed border-white/40 bg-black/30 px-8 py-4 text-center backdrop-blur-sm">
+          <p className="text-lg font-medium text-white">Click & drag to select a region</p>
+          <p className="mt-1 text-sm text-white/60">or switch to Fullscreen mode</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[90]">
+      <svg className="absolute inset-0 size-full">
         <defs>
           <mask id="region-mask">
             <rect width={screenWidth} height={screenHeight} fill="white" />
-            <rect
-              x={region.x}
-              y={region.y}
-              width={region.width}
-              height={region.height}
-              fill="black"
-            />
+            <rect x={region.x} y={region.y} width={region.width} height={region.height} fill="black" />
           </mask>
         </defs>
         <rect
@@ -63,6 +82,7 @@ export function RegionSelector({
           height={screenHeight}
           fill="rgba(0,0,0,0.45)"
           mask="url(#region-mask)"
+          pointerEvents="none"
         />
       </svg>
 
@@ -84,25 +104,18 @@ export function RegionSelector({
           </div>
         </div>
 
-        {HANDLES.map((handle) => {
-          const pos = getHandlePos(handle, region)
-          const isCorner = handle.includes("-")
-          return (
-            <div
-              key={handle}
-              className="absolute z-10 border-2 border-white bg-black/50"
-              style={{
-                cursor: HANDLE_CURSOR[handle],
-                width: isCorner ? 14 : 14,
-                height: isCorner ? 14 : 14,
-                left: pos.x - (isCorner ? 7 : 7),
-                top: pos.y - (isCorner ? 7 : 7),
-                borderRadius: isCorner ? "50%" : 0,
-              }}
-              onPointerDown={(e) => onPointerDown(e, handle)}
-            />
-          )
-        })}
+        {HANDLES.map((handle) => (
+          <Handle key={handle} handle={handle} region={region} onPointerDown={onPointerDown} />
+        ))}
+
+        <button
+          type="button"
+          className="pointer-events-auto absolute -right-2 -top-2 z-20 flex size-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground shadow hover:bg-destructive/90"
+          onClick={onReset}
+          title="Clear region"
+        >
+          ✕
+        </button>
       </div>
     </div>
   )
@@ -111,21 +124,21 @@ export function RegionSelector({
 function getHandlePos(handle: string, r: Region) {
   switch (handle) {
     case "top-left":
-      return { x: r.x, y: r.y }
+      return { x: 0, y: 0 }
     case "top":
-      return { x: r.x + r.width / 2, y: r.y }
+      return { x: r.width / 2, y: 0 }
     case "top-right":
-      return { x: r.x + r.width, y: r.y }
+      return { x: r.width, y: 0 }
     case "right":
-      return { x: r.x + r.width, y: r.y + r.height / 2 }
+      return { x: r.width, y: r.height / 2 }
     case "bottom-right":
-      return { x: r.x + r.width, y: r.y + r.height }
+      return { x: r.width, y: r.height }
     case "bottom":
-      return { x: r.x + r.width / 2, y: r.y + r.height }
+      return { x: r.width / 2, y: r.height }
     case "bottom-left":
-      return { x: r.x, y: r.y + r.height }
+      return { x: 0, y: r.height }
     case "left":
-      return { x: r.x, y: r.y + r.height / 2 }
+      return { x: 0, y: r.height / 2 }
     default:
       return { x: 0, y: 0 }
   }

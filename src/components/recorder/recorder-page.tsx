@@ -153,6 +153,8 @@ export function RecorderPage() {
 
   const doStart = useCallback(
     async (cfg: RecordingConfig) => {
+      if (cfg.mode === "region" && !region.region) return
+
       try {
         const displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: { frameRate: { ideal: cfg.fps } },
@@ -169,7 +171,7 @@ export function RecorderPage() {
 
           const result = compositor.startCapture(
             displayStream,
-            cfg.mode === "region" ? region.region : null,
+            cfg.mode === "region" && region.region ? region.region : null,
             tw,
             th,
             cfg.fps
@@ -255,6 +257,8 @@ export function RecorderPage() {
         <RegionSelector
           region={region.region}
           onPointerDown={region.onPointerDown as (e: React.PointerEvent, handle: string) => void}
+          onCreate={region.onPointerDownCreate}
+          onReset={region.reset}
           screenWidth={SCREEN_W}
           screenHeight={SCREEN_H}
         />
