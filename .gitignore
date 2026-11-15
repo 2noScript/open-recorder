@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Rust / Tauri
+target/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+**/*.rs.bk
+
+# SQLite local files
+*.db
+*.db-shm
+*.db-wal
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

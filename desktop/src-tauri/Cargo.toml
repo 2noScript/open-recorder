@@ -1,0 +1,28 @@
+[package]
+name = "open-recorder-desktop"
+version = "0.1.0"
+description = "Open Recorder Desktop Application"
+authors = ["Open Recorder"]
+edition = "2021"
+
+[lib]
+name = "open_recorder_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "protocol-asset", "macos-private-api"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+thiserror = "2"
+cpal = "0.15"
+rdev = "0.5"
+uuid = { version = "1", features = ["v4"] }
