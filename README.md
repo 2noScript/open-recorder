@@ -39,48 +39,15 @@ open-recorder/
             └── processor/    # FFmpeg thumbnail, trim, and GIF export
 ```
 
-## Prerequisites
+## Development
 
-- **Rust & Cargo** (stable)
-- **Bun** (`>= 1.2`)
-- **FFmpeg** (`ffmpeg` and `ffprobe` available in `PATH`, or `/opt/homebrew/bin` on macOS)
-
-## Getting Started
+**Prerequisites:** [Rust](https://rustup.rs/), [Bun](https://bun.sh/) (`>= 1.2`), and `ffmpeg` / `ffprobe` in `PATH`.
 
 ```bash
-cd desktop
-bun install
-bun run desktop:dev
+bun install --cwd desktop
+bun dev          # Run desktop app in development
+bun run build    # Build production bundle
 ```
 
-## Building for Production
-
-```bash
-cd desktop
-bun run desktop:build
-```
-
-## Verification
-
-```bash
-# Frontend (from desktop/)
-cd desktop
-bun run typecheck
-bun run lint
-bun run build
-
-# Rust backend (from desktop/src-tauri/)
-cd desktop/src-tauri
-cargo check
-cargo test
-```
-
-## macOS Permissions
-
-On first launch on macOS, grant the following permissions in **System Settings → Privacy & Security** (also accessible from the **Settings** tab or the **Grant Screen Permission** button):
-- **Screen & System Audio Recording**: Required to preview displays and capture the screen.
-  - When running in dev mode (`bun run desktop:dev`), enable the toggle for `open-recorder-desktop` and/or the terminal/IDE process running the command (e.g., Terminal, iTerm2, Antigravity).
-  - When running the packaged `.app` (`bun run desktop:build`), enable **Open Recorder**.
-  - Choose **Quit & Reopen** when prompted by macOS so the permission takes effect.
-- **Microphone**: Required to record microphone audio.
-- **Accessibility / Input Monitoring**: Required for global mouse and keyboard tracking (`rdev`).
+- **Checks:** `bun run --cwd desktop typecheck && bun run --cwd desktop lint` and `cargo test` in `desktop/src-tauri/`.
+- **macOS Permissions:** Grant **Screen Recording**, **Microphone**, and **Accessibility** in **System Settings → Privacy & Security** (`OpenRecorder` / your terminal in dev mode, or **Open Recorder** in production).
