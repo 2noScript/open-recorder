@@ -62,6 +62,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -69,5 +70,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFNERDQTFENzE1MDAwMTQKUldRVUFGQnhIY3BOM3Z6ZnRoaXhnS0NCeDR1aUJyT0cxSDR4VnpXYmcrR1UrMjhyZGhYNC8rcVEK",
+      "endpoints": [
+        "https://github.com/2noScript/open-recorder/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

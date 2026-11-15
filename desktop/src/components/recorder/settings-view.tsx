@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
+import { getVersion } from "@tauri-apps/api/app"
+import { relaunch } from "@tauri-apps/plugin-process"
+import { check, type Update } from "@tauri-apps/plugin-updater"
 import {
   DEFAULT_CONFIG,
   type RecordingConfig,
@@ -13,6 +16,7 @@ import {
   type SystemInfo,
 } from "@/lib/tauri"
 import {
+  ArrowDownToLineIcon,
   CheckCircle2Icon,
   DatabaseIcon,
   FolderOpenIcon,
@@ -39,6 +43,13 @@ export function SettingsView({
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null)
   const [permissions, setPermissions] = useState<PermissionStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<
+    "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error"
+  >("idle")
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
 
   const fetchInfo = useCallback(async () => {
     const [info, perms] = await Promise.all([
@@ -74,10 +85,65 @@ export function SettingsView({
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+    getVersion()
+      .then((ver) => {
+        if (!cancelled) setAppVersion(ver)
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [fetchInfo])
+
+  const handleCheckUpdates = async () => {
+    setUpdateStatus("checking")
+    setUpdateError(null)
+    try {
+      const update = await check()
+      if (update) {
+        setAvailableUpdate(update)
+        setUpdateStatus("available")
+      } else {
+        setAvailableUpdate(null)
+        setUpdateStatus("up-to-date")
+      }
+    } catch (err) {
+      setUpdateStatus("error")
+      setUpdateError(
+        err instanceof Error ? err.message : "Failed to check for updates"
+      )
+    }
+  }
+
+  const handleInstallUpdate = async () => {
+    if (!availableUpdate) return
+    setUpdateStatus("downloading")
+    setUpdateError(null)
+    setDownloadProgress(0)
+    let downloaded = 0
+    let total = 0
+    try {
+      await availableUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          total = event.data.contentLength ?? 0
+          downloaded = 0
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength
+          if (total > 0) {
+            setDownloadProgress(Math.min(100, Math.round((downloaded / total) * 100)))
+          }
+        } else if (event.event === "Finished") {
+          setDownloadProgress(100)
+        }
+      })
+      await relaunch()
+    } catch (err) {
+      setUpdateStatus("error")
+      setUpdateError(
+        err instanceof Error ? err.message : "Failed to install update"
+      )
+    }
+  }
 
   const update = <K extends keyof RecordingConfig>(
     key: K,
@@ -397,6 +463,85 @@ export function SettingsView({
             </kbd>
           </div>
         </div>
+      </section>
+
+      {/* App Updates */}
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ArrowDownToLineIcon className="size-4 text-primary" />
+            <div>
+              <h2 className="text-sm font-medium text-foreground">
+                App Updates
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                Current version: {appVersion ? `v${appVersion}` : "—"}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            size="xs"
+            disabled={updateStatus === "checking" || updateStatus === "downloading"}
+            onClick={handleCheckUpdates}
+            className="gap-1.5 rounded-sm"
+          >
+            <RefreshCwIcon
+              className={`size-3.5 ${
+                updateStatus === "checking" ? "animate-spin" : ""
+              }`}
+            />
+            {updateStatus === "checking" ? "Checking..." : "Check for Updates"}
+          </Button>
+        </div>
+
+        {updateStatus === "up-to-date" && (
+          <p className="text-xs text-primary">
+            You are running the latest version of Open Recorder.
+          </p>
+        )}
+
+        {updateStatus === "available" && availableUpdate && (
+          <div className="flex items-center justify-between gap-3 rounded-sm bg-secondary/60 px-3 py-2 text-xs">
+            <div className="min-w-0">
+              <p className="font-medium text-foreground">
+                Update available: v{availableUpdate.version}
+              </p>
+              {availableUpdate.body && (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {availableUpdate.body}
+                </p>
+              )}
+            </div>
+            <Button
+              size="xs"
+              onClick={handleInstallUpdate}
+              className="shrink-0 gap-1.5 rounded-sm"
+            >
+              <ArrowDownToLineIcon className="size-3.5" />
+              Download &amp; Install
+            </Button>
+          </div>
+        )}
+
+        {updateStatus === "downloading" && (
+          <div className="flex flex-col gap-1.5 text-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Downloading &amp; installing update...</span>
+              <span>{downloadProgress !== null ? `${downloadProgress}%` : ""}</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${downloadProgress ?? 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {updateStatus === "error" && updateError && (
+          <p className="text-xs text-destructive">{updateError}</p>
+        )}
       </section>
     </div>
   )
