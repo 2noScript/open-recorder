@@ -17,10 +17,12 @@ import {
 } from "@/lib/tauri"
 import {
   ArrowDownToLineIcon,
+  BugIcon,
   CheckCircle2Icon,
   DatabaseIcon,
   FolderOpenIcon,
   KeyboardIcon,
+  MessageSquarePlusIcon,
   RefreshCwIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
@@ -28,6 +30,7 @@ import {
   TerminalIcon,
   XCircleIcon,
 } from "lucide-react"
+import { openGitHubFeedback } from "@/lib/feedback"
 
 interface SettingsViewProps {
   config: RecordingConfig
@@ -542,6 +545,56 @@ export function SettingsView({
         {updateStatus === "error" && updateError && (
           <p className="text-xs text-destructive">{updateError}</p>
         )}
+      </section>
+
+      {/* Feedback & Support */}
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-medium text-foreground">
+              Feedback &amp; Bug Reports
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              Found a bug or have an idea? Open a pre-filled GitHub issue in your
+              browser.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={() =>
+                openGitHubFeedback("feature", {
+                  appVersion,
+                  os: sysInfo ? `${sysInfo.os} (${sysInfo.arch})` : null,
+                }).catch(() => {})
+              }
+              className="gap-1.5 rounded-sm"
+            >
+              <MessageSquarePlusIcon className="size-3.5" />
+              Request Feature
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() =>
+                openGitHubFeedback("bug", {
+                  appVersion,
+                  os: sysInfo ? `${sysInfo.os} (${sysInfo.arch})` : null,
+                  ffmpegVersion: sysInfo
+                    ? sysInfo.ffmpegInstalled
+                      ? sysInfo.ffmpegVersion ?? "Installed"
+                      : "Not found"
+                    : null,
+                }).catch(() => {})
+              }
+              className="gap-1.5 rounded-sm"
+            >
+              <BugIcon className="size-3.5 text-destructive" />
+              Report a Bug
+            </Button>
+          </div>
+        </div>
       </section>
     </div>
   )

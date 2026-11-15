@@ -36,6 +36,7 @@ import {
   type WindowInfo,
 } from "@/lib/tauri"
 import {
+  BugIcon,
   CircleIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -44,6 +45,7 @@ import {
   SettingsIcon,
   SquareIcon,
 } from "lucide-react"
+import { openGitHubFeedback } from "@/lib/feedback"
 
 type View = "record" | "history" | "settings"
 
@@ -469,6 +471,16 @@ export function RecorderPage() {
             className="text-muted-foreground hover:text-foreground"
           >
             <FolderOpenIcon className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Report a bug"
+            title="Report a Bug / Feedback"
+            onClick={() => openGitHubFeedback("bug").catch(() => {})}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <BugIcon className="size-3.5" />
           </Button>
         </div>
       </header>
