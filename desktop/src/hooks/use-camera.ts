@@ -11,6 +11,10 @@ export function useCamera() {
     setLoading(true)
     setError(null)
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("Camera unavailable in this WebView")
+        return
+      }
       const constraints: MediaStreamConstraints = {
         video: deviceId
           ? { deviceId: { exact: deviceId }, width: { ideal: 320 }, height: { ideal: 240 } }
@@ -37,9 +41,13 @@ export function useCamera() {
   }, [])
 
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then((all) => {
-      setDevices(all.filter((d) => d.kind === "videoinput"))
-    })
+    if (!navigator.mediaDevices?.enumerateDevices) return
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((all) => {
+        setDevices(all.filter((d) => d.kind === "videoinput"))
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {

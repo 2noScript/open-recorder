@@ -33,6 +33,53 @@ pub fn require_ffmpeg() -> AppResult<PathBuf> {
     })
 }
 
+pub fn ffmpeg_version_info(ffmpeg: &Path) -> Option<String> {
+    let output = Command::new(ffmpeg).arg("-version").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .next()
+        .map(|line| line.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+pub fn detect_hardware_encoder(ffmpeg: &Path) -> Option<String> {
+    let output = Command::new(ffmpeg)
+        .args(["-hide_banner", "-encoders"])
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    #[cfg(target_os = "macos")]
+    {
+        if stdout.contains("h264_videotoolbox") {
+            return Some("h264_videotoolbox".to_string());
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        for enc in ["h264_nvenc", "h264_qsv", "h264_amf"] {
+            if stdout.contains(enc) {
+                return Some(enc.to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        for enc in ["h264_nvenc", "h264_vaapi", "h264_qsv"] {
+            if stdout.contains(enc) {
+                return Some(enc.to_string());
+            }
+        }
+    }
+    if stdout.contains("libx264") {
+        return Some("libx264 (software)".to_string());
+    }
+    None
+}
+
 pub fn generate_thumbnail(video_path: &Path, output_path: &Path) -> AppResult<()> {
     let ffmpeg = require_ffmpeg()?;
     if let Some(parent) = output_path.parent() {

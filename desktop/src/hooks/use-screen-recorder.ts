@@ -3,9 +3,14 @@ import { listen } from "@tauri-apps/api/event"
 import type { Recording } from "@/lib/db"
 import type { Region } from "@/hooks/use-region"
 import {
+  hideMiniBar,
+  hideOverlayWindow,
   pauseDesktopRecording,
   resumeDesktopRecording,
   setInputTracking,
+  setOverlayIgnoreCursor,
+  showMainWindow,
+  showOverlayWindow,
   startDesktopRecording,
   stopDesktopRecording,
 } from "@/lib/tauri"
@@ -19,7 +24,7 @@ export interface RecordingConfig {
   micDeviceId: string
   systemAudio: boolean
 
-  mode: "fullscreen" | "region"
+  mode: "fullscreen" | "region" | "window"
   countdown: number
   showMouseHighlight: boolean
   showKeystrokes: boolean
@@ -66,28 +71,32 @@ export function useScreenRecorder() {
   const [elapsed, setElapsed] = useState(0)
   const [fileSize, setFileSize] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const unlistenRef = useRef<(() => void) | null>(null)
+  const unlistenersRef = useRef<Array<() => void>>([])
 
-  const cleanupListener = useCallback(() => {
-    if (unlistenRef.current) {
-      unlistenRef.current()
-      unlistenRef.current = null
+  const cleanupListeners = useCallback(() => {
+    for (const unlisten of unlistenersRef.current) {
+      unlisten()
     }
+    unlistenersRef.current = []
   }, [])
 
   useEffect(() => {
-    return () => cleanupListener()
-  }, [cleanupListener])
+    return () => cleanupListeners()
+  }, [cleanupListeners])
 
   const start = useCallback(
-    async (config: RecordingConfig, region: Region | null = null) => {
+    async (
+      config: RecordingConfig,
+      region: Region | null = null,
+      displayIndex: number | null = null
+    ) => {
       setError(null)
       setRecording(null)
       setElapsed(0)
       setFileSize(0)
 
-      cleanupListener()
-      const unlisten = await listen<{
+      cleanupListeners()
+      const unlistenProgress = await listen<{
         elapsed: number
         fileSize: number
         status: string
@@ -95,12 +104,48 @@ export function useScreenRecorder() {
         setElapsed(event.payload.elapsed)
         setFileSize(event.payload.fileSize)
       })
-      unlistenRef.current = unlisten
 
+      const unlistenState = await listen<string>(
+        "recording-state-changed",
+        (event) => {
+          if (event.payload === "paused") setStatus("paused")
+          else if (event.payload === "recording") setStatus("recording")
+        }
+      )
+
+      const unlistenStopped = await listen<Recording>(
+        "recording-stopped",
+        (event) => {
+          cleanupListeners()
+          setInputTracking(false, false).catch(() => {})
+          hideOverlayWindow().catch(() => {})
+          hideMiniBar().catch(() => {})
+          showMainWindow().catch(() => {})
+          setRecording(event.payload)
+          setElapsed(event.payload.duration)
+          setFileSize(event.payload.size)
+          setStatus("done")
+        }
+      )
+
+      unlistenersRef.current = [
+        unlistenProgress,
+        unlistenState,
+        unlistenStopped,
+      ]
+
+      const needsOverlay =
+        config.showMouseHighlight ||
+        config.showKeystrokes ||
+        config.annotationsEnabled
       await setInputTracking(
         config.showMouseHighlight,
         config.showKeystrokes
       ).catch(() => {})
+      if (needsOverlay) {
+        await showOverlayWindow().catch(() => {})
+        await setOverlayIgnoreCursor(true).catch(() => {})
+      }
 
       await startDesktopRecording({
         resolution: config.resolution,
@@ -117,12 +162,14 @@ export function useScreenRecorder() {
               height: Math.round(region.height),
             }
           : null,
-        displayIndex: null,
+        displayIndex,
+        watermarkText: config.watermarkEnabled ? config.watermarkText : null,
+        watermarkOpacity: config.watermarkEnabled ? config.watermarkOpacity : null,
       })
 
       setStatus("recording")
     },
-    [cleanupListener]
+    [cleanupListeners]
   )
 
   const pause = useCallback(async () => {
@@ -136,24 +183,27 @@ export function useScreenRecorder() {
   }, [])
 
   const stop = useCallback(async () => {
-    cleanupListener()
+    cleanupListeners()
     await setInputTracking(false, false).catch(() => {})
+    await hideOverlayWindow().catch(() => {})
     const saved = await stopDesktopRecording()
+    await hideMiniBar().catch(() => {})
+    await showMainWindow().catch(() => {})
     setRecording(saved)
     setElapsed(saved.duration)
     setFileSize(saved.size)
     setStatus("done")
     return saved
-  }, [cleanupListener])
+  }, [cleanupListeners])
 
   const reset = useCallback(() => {
-    cleanupListener()
+    cleanupListeners()
     setRecording(null)
     setElapsed(0)
     setFileSize(0)
     setError(null)
     setStatus("idle")
-  }, [cleanupListener])
+  }, [cleanupListeners])
 
   return {
     status,

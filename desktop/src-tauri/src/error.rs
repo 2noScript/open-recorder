@@ -4,7 +4,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Database error: {0}")]
-    Database(#[from] rusqlite::Error),
+    Database(#[from] diesel::result::Error),
+
+    #[error("Database connection error: {0}")]
+    Connection(#[from] diesel::ConnectionError),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

@@ -24,9 +24,12 @@
         "title": "Open Recorder",
         "width": 1100,
         "height": 760,
-        "minWidth": 900,
-        "minHeight": 640,
-        "resizable": true
+        "minWidth": 880,
+        "minHeight": 600,
+        "resizable": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "backgroundColor": "#181818"
       },
       {
         "label": "overlay",
@@ -37,8 +40,22 @@
         "alwaysOnTop": true,
         "visible": false,
         "skipTaskbar": true,
-        "resizable": false,
+        "resizable": true,
         "shadow": false
+      },
+      {
+        "label": "mini-bar",
+        "title": "Open Recorder Controls",
+        "url": "/?window=mini-bar",
+        "width": 380,
+        "height": 56,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "resizable": false,
+        "shadow": true
       }
     ]
   },

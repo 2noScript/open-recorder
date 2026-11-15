@@ -1,14 +1,16 @@
 # Open Recorder
 
-A cross-platform desktop screen recorder built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind CSS v4 / shadcn/ui**.
+A lightweight, capture-first desktop screen recorder for macOS, Windows, and Linux.
+
+![Open Recorder](docs/assets/open-recorder-preview.png)
 
 ## Features
 
-- **Native Screen & Audio Capture**: Record fullscreen or a custom `Region` with configurable resolution (`720p`, `1080p`, `4K`, `original`), FPS (`15`, `30`, `60`), pause/resume, and real-time recording progress via FFmpeg.
-- **Microphone Monitoring (`cpal`)**: Enumerate audio input devices and stream real-time microphone VU meter levels.
-- **Global Mouse & Keystroke Tracking (`rdev`)**: Transparent overlay window (`/?window=overlay`) for system-wide mouse click highlights and keystroke display.
-- **Local SQLite Storage (`rusqlite`)**: Store recording metadata in SQLite (`open_recorder.db`) while saving `.mp4` videos and `.jpg` thumbnails directly to disk for zero-RAM-bloat playback.
-- **FFmpeg Post-Processing**: Automatic thumbnail generation, fast video trimming (`-c copy`), and high-quality 2-pass palette GIF export.
+- **Screen, Region & App Window Capture**: Record fullscreen, a custom `Region` (drag directly on preview or use the fullscreen selector), or an open application `Window` (with search and automatic multi-monitor detection), with live display preview, configurable resolution (`720p`, `1080p`, `4K`, `original`), FPS (`15`, `30`, `60`), and pause/resume.
+- **Settings & Diagnostics Screen**: Inspect FFmpeg status, storage and library paths, OS privacy shortcuts, and default capture settings.
+- **Microphone & Audio Monitoring**: Select audio input devices with a real-time microphone VU meter.
+- **Mouse & Keystroke Overlays**: System-wide mouse click highlights, keystroke display, optional camera PiP, and live screen annotations.
+- **Recordings Library & Export**: Automatic thumbnail generation, fast video trimming, and GIF export saved directly to disk.
 - **System Tray**: Quick access to open the main window or quit from the system tray.
 
 ## Project Structure
@@ -32,7 +34,7 @@ open-recorder/
         └── src/
             ├── capture/      # Screen & audio capture + Mic VU meter (cpal)
             ├── commands/     # #[tauri::command] handlers for the UI
-            ├── db/           # SQLite repository (rusqlite bundled)
+            ├── db/           # SQLite repository (diesel + libsqlite3-sys bundled)
             ├── input_hooks/  # Global mouse & keyboard listener (rdev)
             └── processor/    # FFmpeg thumbnail, trim, and GIF export
 ```
@@ -75,7 +77,10 @@ cargo test
 
 ## macOS Permissions
 
-On first launch on macOS, grant the following permissions in **System Settings → Privacy & Security**:
-- **Screen Recording**: Required to capture the screen.
+On first launch on macOS, grant the following permissions in **System Settings → Privacy & Security** (also accessible from the **Settings** tab or the **Grant Screen Permission** button):
+- **Screen & System Audio Recording**: Required to preview displays and capture the screen.
+  - When running in dev mode (`bun run desktop:dev`), enable the toggle for `open-recorder-desktop` and/or the terminal/IDE process running the command (e.g., Terminal, iTerm2, Antigravity).
+  - When running the packaged `.app` (`bun run desktop:build`), enable **Open Recorder**.
+  - Choose **Quit & Reopen** when prompted by macOS so the permission takes effect.
 - **Microphone**: Required to record microphone audio.
 - **Accessibility / Input Monitoring**: Required for global mouse and keyboard tracking (`rdev`).

@@ -1,16 +1,19 @@
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
-use crate::capture::{list_audio_devices as enumerate_audio, CaptureManager, MicMonitor};
+use crate::capture::{
+    list_audio_devices as enumerate_audio, list_displays as enumerate_displays, CaptureManager,
+    MicMonitor,
+};
 use crate::db::Database;
 use crate::error::{AppError, AppResult};
 use crate::input_hooks::InputTracker;
 use crate::models::{
-    AudioDeviceInfo, GifExportRequest, NewRecording, PermissionStatus, Recording, RecordingConfig,
-    TrimRequest,
+    AudioDeviceInfo, DisplayInfo, GifExportRequest, NewRecording, PermissionStatus, Recording,
+    RecordingConfig, SystemInfo, TrimRequest, WindowInfo,
 };
 use crate::processor;
 
@@ -20,6 +23,7 @@ pub struct AppState {
     pub mic_monitor: MicMonitor,
     pub input_tracker: InputTracker,
     pub recordings_dir: PathBuf,
+    pub db_path: PathBuf,
 }
 
 #[tauri::command]
@@ -116,6 +120,11 @@ pub fn open_recording_in_folder(file_path: String) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub fn list_displays() -> AppResult<Vec<DisplayInfo>> {
+    enumerate_displays()
+}
+
+#[tauri::command]
 pub fn list_audio_devices() -> AppResult<Vec<AudioDeviceInfo>> {
     enumerate_audio()
 }
@@ -151,17 +160,24 @@ pub fn start_recording(
 }
 
 #[tauri::command]
-pub fn pause_recording(state: State<'_, AppState>) -> AppResult<()> {
-    state.capture.pause()
+pub fn pause_recording(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
+    state.capture.pause()?;
+    let _ = app.emit("recording-state-changed", "paused");
+    Ok(())
 }
 
 #[tauri::command]
-pub fn resume_recording(state: State<'_, AppState>) -> AppResult<()> {
-    state.capture.resume()
+pub fn resume_recording(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
+    state.capture.resume()?;
+    let _ = app.emit("recording-state-changed", "recording");
+    Ok(())
 }
 
 #[tauri::command]
-pub fn stop_recording(state: State<'_, AppState>) -> AppResult<Recording> {
+pub fn stop_recording(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<Recording> {
     let (file_path, elapsed_ms) = state.capture.stop()?;
     let size = std::fs::metadata(&file_path)
         .map(|m| m.len() as i64)
@@ -178,7 +194,7 @@ pub fn stop_recording(state: State<'_, AppState>) -> AppResult<Recording> {
 
     let now = Utc::now();
     let name = format!("Recording {}", now.format("%Y-%m-%d %H:%M:%S"));
-    state.db.save_recording(&NewRecording {
+    let saved = state.db.save_recording(&NewRecording {
         name,
         file_path: file_path.to_string_lossy().into_owned(),
         thumbnail_path,
@@ -186,7 +202,33 @@ pub fn stop_recording(state: State<'_, AppState>) -> AppResult<Recording> {
         duration,
         size,
         created_at: now.to_rfc3339(),
-    })
+    })?;
+    let _ = app.emit("recording-stopped", &saved);
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn get_recordings_dir(state: State<'_, AppState>) -> String {
+    state.recordings_dir.to_string_lossy().into_owned()
+}
+
+#[tauri::command]
+pub fn open_recordings_dir(state: State<'_, AppState>) -> AppResult<()> {
+    let dir = &state.recordings_dir;
+    std::fs::create_dir_all(dir)?;
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(dir).spawn()?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer").arg(dir).spawn()?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(dir).spawn()?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -283,11 +325,46 @@ pub fn set_overlay_ignore_cursor(ignore: bool, app: AppHandle) -> AppResult<()> 
 }
 
 #[tauri::command]
-pub fn show_overlay_window(app: AppHandle) -> AppResult<()> {
+pub fn show_overlay_window(display_index: Option<u32>, app: AppHandle) -> AppResult<()> {
     if let Some(win) = app.get_webview_window("overlay") {
+        let target_monitor = display_index
+            .and_then(|idx| {
+                let ordinal = crate::capture::display_ordinal_for_index(idx);
+                win.available_monitors().ok()?.into_iter().nth(ordinal)
+            })
+            .or_else(|| win.primary_monitor().ok().flatten());
+
+        if let Some(monitor) = target_monitor {
+            let _ = win.set_position(*monitor.position());
+            let _ = win.set_size(*monitor.size());
+        }
         win.show()?;
+        let _ = win.set_focus();
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn capture_display_preview(display_index: u32) -> AppResult<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::capture::capture_display_preview(display_index)
+    })
+    .await
+    .map_err(|e| AppError::Recording(format!("Preview task failed: {e}")))?
+}
+
+#[tauri::command]
+pub async fn list_windows() -> AppResult<Vec<WindowInfo>> {
+    tauri::async_runtime::spawn_blocking(crate::capture::list_windows)
+        .await
+        .map_err(|e| AppError::Recording(format!("Window list task failed: {e}")))?
+}
+
+#[tauri::command]
+pub async fn capture_window_preview(window_id: u32) -> AppResult<String> {
+    tauri::async_runtime::spawn_blocking(move || crate::capture::capture_window_preview(window_id))
+        .await
+        .map_err(|e| AppError::Recording(format!("Window preview task failed: {e}")))?
 }
 
 #[tauri::command]
@@ -299,10 +376,107 @@ pub fn hide_overlay_window(app: AppHandle) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub fn show_mini_bar(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window("mini-bar") {
+        win.show()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_mini_bar(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window("mini-bar") {
+        win.hide()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn show_main_window(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window("main") {
+        win.show()?;
+        win.set_focus()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_main_window(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window("main") {
+        win.hide()?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
+#[tauri::command]
 pub fn check_permissions() -> PermissionStatus {
+    #[cfg(target_os = "macos")]
+    let screen_recording =
+        processor::resolve_binary("ffmpeg").is_some() && unsafe { CGPreflightScreenCaptureAccess() };
+    #[cfg(not(target_os = "macos"))]
+    let screen_recording = processor::resolve_binary("ffmpeg").is_some();
+
     PermissionStatus {
-        screen_recording: processor::resolve_binary("ffmpeg").is_some(),
+        screen_recording,
         microphone: enumerate_audio().map(|d| !d.is_empty()).unwrap_or(false),
         accessibility: true,
     }
+}
+
+#[tauri::command]
+pub fn open_privacy_settings(pane: String) -> AppResult<()> {
+    #[cfg(target_os = "macos")]
+    {
+        if pane == "screen" {
+            unsafe {
+                CGRequestScreenCaptureAccess();
+            }
+        }
+        let url = match pane.as_str() {
+            "screen" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "mic" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+            "accessibility" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            _ => "x-apple.systempreferences:com.apple.preference.security",
+        };
+        std::process::Command::new("open").arg(url).spawn()?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = pane;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_system_info(state: State<'_, AppState>) -> AppResult<SystemInfo> {
+    let recordings_dir = state.recordings_dir.to_string_lossy().to_string();
+    let db_path = state.db_path.to_string_lossy().to_string();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let ffmpeg = processor::resolve_binary("ffmpeg");
+        let ffprobe = processor::resolve_binary("ffprobe");
+
+        let ffmpeg_version = ffmpeg.as_deref().and_then(processor::ffmpeg_version_info);
+        let hardware_encoder = ffmpeg.as_deref().and_then(processor::detect_hardware_encoder);
+
+        SystemInfo {
+            ffmpeg_installed: ffmpeg.is_some(),
+            ffmpeg_path: ffmpeg.map(|p| p.to_string_lossy().to_string()),
+            ffmpeg_version,
+            ffprobe_installed: ffprobe.is_some(),
+            ffprobe_path: ffprobe.map(|p| p.to_string_lossy().to_string()),
+            hardware_encoder,
+            recordings_dir,
+            db_path,
+            os: std::env::consts::OS.to_string(),
+            arch: std::env::consts::ARCH.to_string(),
+        }
+    })
+    .await
+    .map_err(|e| AppError::Recording(format!("System info task failed: {e}")))
 }

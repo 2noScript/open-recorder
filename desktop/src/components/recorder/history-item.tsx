@@ -11,6 +11,7 @@ import {
   DownloadIcon,
   FilePenLineIcon,
   FolderOpenIcon,
+  PlayIcon,
   VideoIcon,
 } from "lucide-react"
 import {
@@ -22,6 +23,7 @@ import {
 
 interface HistoryItemProps {
   recording: Recording
+  onPlay?: (recording: Recording) => void
   onDelete: (id: number) => void
   onRename: (id: number, name: string) => void
 }
@@ -49,7 +51,7 @@ function formatDate(isoDate: string): string {
   }).format(new Date(isoDate))
 }
 
-export function HistoryItem({ recording, onDelete, onRename }: HistoryItemProps) {
+export function HistoryItem({ recording, onPlay, onDelete, onRename }: HistoryItemProps) {
   const thumbnailUrl = useMemo(() => {
     if (recording.thumbnailPath) return getMediaUrl(recording.thumbnailPath)
     return null
@@ -111,6 +113,16 @@ export function HistoryItem({ recording, onDelete, onRename }: HistoryItemProps)
         </div>
       </CardContent>
       <CardFooter className="justify-end gap-1 px-3 pb-3 pt-0">
+        {onPlay && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Play recording"
+            onClick={() => onPlay(recording)}
+          >
+            <PlayIcon className="size-3.5 text-primary" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon-xs"

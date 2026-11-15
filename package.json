@@ -1,0 +1,12 @@
+{
+  "name": "open-recorder-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "cd desktop && bun run desktop:dev",
+    "build": "cd desktop && bun run desktop:build",
+    "web:dev": "cd desktop && bun run dev",
+    "lint": "cd desktop && bun run lint",
+    "typecheck": "cd desktop && bun run typecheck",
+    "install:all": "cd desktop && bun install"
+  }
+}

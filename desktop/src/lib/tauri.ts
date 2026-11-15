@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core"
 import type { Recording } from "@/lib/db"
 
+export interface DisplayInfo {
+  index: number
+  name: string
+  isPrimary: boolean
+}
+
 export interface AudioDeviceInfo {
   id: string
   name: string
@@ -23,12 +29,18 @@ export interface DesktopRecordingConfig {
   mode: string
   region: DesktopRegion | null
   displayIndex: number | null
+  watermarkText?: string | null
+  watermarkOpacity?: number | null
 }
 
 export interface PermissionStatus {
   screenRecording: boolean
   microphone: boolean
   accessibility: boolean
+}
+
+export async function listDisplays(): Promise<DisplayInfo[]> {
+  return invoke<DisplayInfo[]>("list_displays")
 }
 
 export async function listAudioDevices(): Promise<AudioDeviceInfo[]> {
@@ -92,14 +104,89 @@ export async function setOverlayIgnoreCursor(ignore: boolean): Promise<void> {
   return invoke<void>("set_overlay_ignore_cursor", { ignore })
 }
 
-export async function showOverlayWindow(): Promise<void> {
-  return invoke<void>("show_overlay_window")
+export async function showOverlayWindow(displayIndex?: number): Promise<void> {
+  return invoke<void>("show_overlay_window", {
+    displayIndex: displayIndex ?? null,
+  })
+}
+
+export async function captureDisplayPreview(
+  displayIndex: number
+): Promise<string> {
+  return invoke<string>("capture_display_preview", { displayIndex })
+}
+
+export interface WindowInfo {
+  id: number
+  appName: string
+  title: string
+  x: number
+  y: number
+  width: number
+  height: number
+  displayIndex: number | null
+  displayName: string | null
+}
+
+export async function listWindows(): Promise<WindowInfo[]> {
+  return invoke<WindowInfo[]>("list_windows")
+}
+
+export async function captureWindowPreview(windowId: number): Promise<string> {
+  return invoke<string>("capture_window_preview", { windowId })
 }
 
 export async function hideOverlayWindow(): Promise<void> {
   return invoke<void>("hide_overlay_window")
 }
 
+export async function showMiniBar(): Promise<void> {
+  return invoke<void>("show_mini_bar")
+}
+
+export async function hideMiniBar(): Promise<void> {
+  return invoke<void>("hide_mini_bar")
+}
+
+export async function showMainWindow(): Promise<void> {
+  return invoke<void>("show_main_window")
+}
+
+export async function hideMainWindow(): Promise<void> {
+  return invoke<void>("hide_main_window")
+}
+
 export async function checkPermissions(): Promise<PermissionStatus> {
   return invoke<PermissionStatus>("check_permissions")
+}
+
+export async function openPrivacySettings(
+  pane: "screen" | "mic" | "accessibility"
+): Promise<void> {
+  return invoke<void>("open_privacy_settings", { pane })
+}
+
+export async function getRecordingsDir(): Promise<string> {
+  return invoke<string>("get_recordings_dir")
+}
+
+export async function openRecordingsDir(): Promise<void> {
+  return invoke<void>("open_recordings_dir")
+}
+
+export interface SystemInfo {
+  ffmpegInstalled: boolean
+  ffmpegPath: string | null
+  ffmpegVersion: string | null
+  ffprobeInstalled: boolean
+  ffprobePath: string | null
+  hardwareEncoder: string | null
+  recordingsDir: string
+  dbPath: string
+  os: string
+  arch: string
+}
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  return invoke<SystemInfo>("get_system_info")
 }

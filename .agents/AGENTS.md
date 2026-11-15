@@ -1,39 +1,41 @@
-# Hướng dẫn làm việc với Open Recorder
+# Working Guidelines for Open Recorder
 
-Đọc phần liên quan trước khi sửa. Dùng mã nguồn và manifest hiện hành để xác nhận đường dẫn, lệnh và tên tính năng.
+Read the relevant sections before making changes. Use the current source code and manifests to verify file paths, commands, and feature names.
 
-## Cấu trúc dự án
+## Project Structure
 
-- `desktop/` chứa toàn bộ ứng dụng Desktop (Frontend React + Backend Rust Tauri v2).
-  - `desktop/src/` chứa giao diện React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui (build bằng Vite). Trong `desktop/src/`, `@/` trỏ tới `desktop/src/`.
-    - `desktop/src/components/ui/` chứa các primitive component của shadcn/ui.
-    - `desktop/src/components/recorder/` chứa các component nghiệp vụ quay màn hình, overlay, audio mixer, preview, cắt video, xuất GIF và lịch sử bản ghi.
-    - `desktop/src/hooks/` chứa các hook điều phối trạng thái và giao tiếp IPC với Rust qua `@tauri-apps/api` (`invoke` / `listen`).
-    - `desktop/src/lib/` chứa tiện ích dùng chung, wrapper Tauri commands và lớp gọi lưu trữ SQLite phía backend.
-  - `desktop/src-tauri/` chứa backend Rust (Tauri v2), trỏ `frontendDist` tới `../dist` và `devUrl` tới `http://localhost:5173`.
-    - `desktop/src-tauri/src/commands/` chứa các `#[tauri::command]` giao tiếp với giao diện React.
-    - `desktop/src-tauri/src/capture/` chứa logic quay màn hình, system audio và micro (FFmpeg + `cpal`).
-    - `desktop/src-tauri/src/input_hooks/` chứa global mouse & keyboard tracking (`rdev`) phục vụ highlight chuột và hiển thị phím bấm toàn hệ thống.
-    - `desktop/src-tauri/src/processor/` chứa xử lý hậu kỳ bằng FFmpeg (cắt video, tạo thumbnail, xuất GIF).
-    - `desktop/src-tauri/src/db/` chứa SQLite (`rusqlite` với feature `bundled`) lưu metadata bản ghi; file video và thumbnail lưu trực tiếp trên ổ cứng.
+- `desktop/` contains the entire Desktop application (React frontend + Rust Tauri v2 backend).
+  - `desktop/src/` contains the React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui interface (built with Vite). Inside `desktop/src/`, `@/` resolves to `desktop/src/`.
+    - `desktop/src/components/ui/` contains shadcn/ui primitive components.
+    - `desktop/src/components/recorder/` contains recorder feature components (screen recording controls, overlays, audio mixer, preview, video trimming, GIF export, and recording history).
+    - `desktop/src/hooks/` contains state orchestration hooks and IPC communication with Rust via `@tauri-apps/api` (`invoke` / `listen`).
+    - `desktop/src/lib/` contains shared utilities, typed Tauri command wrappers, and the SQLite storage client layer.
+  - `desktop/src-tauri/` contains the Rust backend (Tauri v2), pointing `frontendDist` to `../dist` and `devUrl` to `http://localhost:5173`.
+    - `desktop/src-tauri/src/commands/` contains `#[tauri::command]` handlers exposed to the React UI.
+    - `desktop/src-tauri/src/capture/` contains screen recording, system audio, and microphone capture/monitoring logic (FFmpeg + `cpal`).
+    - `desktop/src-tauri/src/input_hooks/` contains global mouse & keyboard tracking (`rdev`) for system-wide mouse highlighting and keystroke display.
+    - `desktop/src-tauri/src/processor/` contains FFmpeg post-processing (video trimming, thumbnail generation, GIF export).
+    - `desktop/src-tauri/src/db/` contains SQLite (`diesel` + `libsqlite3-sys` with `bundled` feature) for recording metadata; video and thumbnail files are stored directly on disk.
 
-## Quy ước code và dữ liệu
+## Code & Data Conventions
 
-- Chỉ phát triển phiên bản Desktop (không duy trì nhánh Web/PWA hay IndexedDB/Dexie).
-- Dùng tên file kebab-case như `recording-controls.tsx`, `use-screen-recorder.ts`. Giữ tên mà Cargo, Tauri hoặc FFmpeg yêu cầu.
-- Mọi thao tác hệ thống (quay màn hình, thu âm, ghi file, SQLite, FFmpeg, global input hooks) đặt ở backend Rust trong `desktop/src-tauri/src/`; kiểm tra và validate payload tại ranh giới `commands/`.
-- Lưu metadata bản ghi (tên, `file_path`, `thumbnail_path`, `mime_type`, `duration`, `size`, `created_at`) trong SQLite; phát video trực tiếp từ đường dẫn file qua `convertFileSrc()`, không giữ `Blob` lớn trong RAM.
-- Tái sử dụng component và hook hiện có; đăng ký listener/timer theo vòng đời và dọn dẹp đầy đủ khi dừng quay hoặc đóng cửa sổ.
-- Chỉ báo thành công khi thao tác ghi file, lưu SQLite hoặc xuất video/GIF thực sự hoàn tất; xử lý đầy đủ nhánh lỗi và quyền hệ điều hành (Screen Recording, Microphone, Camera, Accessibility trên macOS).
+- Desktop-only application (do not maintain Web/PWA branches or IndexedDB/Dexie).
+- Use kebab-case file names such as `recording-controls.tsx` and `use-screen-recorder.ts`. Keep file names required by Cargo, Tauri, or FFmpeg.
+- Place all system-level operations (screen capture, audio recording, file I/O, SQLite, FFmpeg, global input hooks) in the Rust backend under `desktop/src-tauri/src/`; validate payloads at the `commands/` boundary.
+- Store recording metadata (`name`, `file_path`, `thumbnail_path`, `mime_type`, `duration`, `size`, `created_at`) in SQLite; play back videos directly from disk via `convertFileSrc()` instead of holding large `Blob` objects in RAM.
+- Reuse existing components and hooks; register listeners and timers per lifecycle and clean them up thoroughly when stopping recording or closing windows.
+- Only report success after file writes, SQLite persistence, or video/GIF exports have actually completed; handle error paths and OS permissions cleanly (Screen Recording, Microphone, Camera, Accessibility on macOS).
 
-## Chuẩn giao diện
+## UI Standards
 
-- Dùng font `Inter Variable` (`@fontsource-variable/inter`) và hệ thống biến màu Tailwind v4 / shadcn trong [desktop/src/index.css](../desktop/src/index.css) (`--background`, `--foreground`, `--card`, `--primary`, `--muted`, `--destructive`, `--border`, `--radius`). Hỗ trợ đầy đủ chế độ sáng/tối qua `theme-provider.tsx`.
-- Giữ nhất quán `shadcn/ui` trong `desktop/src/components/ui/` và icon `lucide-react`; đặt `aria-label` hoặc tooltip rõ ràng cho các nút chỉ có icon.
-- Cửa sổ overlay quay màn hình (`/?window=overlay`: mouse highlighter, keystroke display) phải tách biệt quyền nhận chuột (`setIgnoreCursorEvents`) để không chặn thao tác xuống ứng dụng bên dưới khi đang quay.
+- Use the Script Pro color palette defined in [desktop/src/index.css](../desktop/src/index.css). In dark mode: frame `#181818`, sidebar/nav `#202020`, card/panel `#262626`, secondary/toolbar `#2e2e2e`, popover/dialog `#333333`, border/muted `#363636`, and teal `#36b5ba` (`#087e85` in light mode) for primary actions and active states. Support both light and dark modes via `theme-provider.tsx`.
+- Use bundled `Inter Variable` (`@fontsource-variable/inter`). Keep root font size at `16px`; use `12px`/`18px` for body, buttons, inputs, menus, and list items, `11px`/`16px` for captions, and `14px`/`20px` for card/dialog titles.
+- Use `4px` radius (`rounded-sm`) for buttons and inputs, `6px` (`rounded-md`) for menus, and `8px` (`--radius: 0.5rem`, `rounded-lg`) for panels and dialogs.
+- Keep UI consistent with `shadcn/ui` in `desktop/src/components/ui/` and `lucide-react` icons; provide clear `aria-label` or tooltips for icon-only buttons.
+- The recording overlay window (`/?window=overlay`: mouse highlighter, keystroke display) must manage mouse pass-through (`setIgnoreCursorEvents`) so it does not block clicks to underlying applications while recording.
 
-## Kiểm tra
+## Verification
 
-- Frontend, tại `desktop/`: `bun run typecheck`, `bun run lint`, `bun run build`.
-- Desktop Rust, tại `desktop/src-tauri/`: `cargo check`, `cargo test`, `cargo clippy`.
-- Chạy thử ứng dụng desktop từ `desktop/`: `bun run desktop:dev` / `bun run desktop:build` và kiểm tra thực tế luồng xin quyền, quay màn hình, lưu SQLite, preview, trim và export GIF.
+- Frontend, from `desktop/`: `bun run typecheck`, `bun run lint`, `bun run build`.
+- Rust backend, from `desktop/src-tauri/`: `cargo check`, `cargo test`, `cargo clippy`.
+- End-to-end desktop testing from `desktop/`: `bun run desktop:dev` / `bun run desktop:build` to verify OS permissions, screen capture, SQLite persistence, preview, trimming, and GIF export.

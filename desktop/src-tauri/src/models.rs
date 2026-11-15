@@ -45,6 +45,8 @@ pub struct RecordingConfig {
     pub mode: String,
     pub region: Option<Region>,
     pub display_index: Option<u32>,
+    pub watermark_text: Option<String>,
+    pub watermark_opacity: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +55,28 @@ pub struct AudioDeviceInfo {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayInfo {
+    pub index: u32,
+    pub name: String,
+    pub is_primary: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowInfo {
+    pub id: u32,
+    pub app_name: String,
+    pub title: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub display_index: Option<u32>,
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,4 +129,19 @@ pub struct PermissionStatus {
     pub screen_recording: bool,
     pub microphone: bool,
     pub accessibility: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemInfo {
+    pub ffmpeg_installed: bool,
+    pub ffmpeg_path: Option<String>,
+    pub ffmpeg_version: Option<String>,
+    pub ffprobe_installed: bool,
+    pub ffprobe_path: Option<String>,
+    pub hardware_encoder: Option<String>,
+    pub recordings_dir: String,
+    pub db_path: String,
+    pub os: String,
+    pub arch: String,
 }

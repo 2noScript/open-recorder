@@ -37,6 +37,7 @@ import {
   TimerIcon,
 } from "lucide-react"
 import type { RecordingConfig } from "@/hooks/use-screen-recorder"
+import { listAudioDevices, type AudioDeviceInfo } from "@/lib/tauri"
 import { RESOLUTION_PRESETS } from "@/hooks/use-screen-recorder"
 
 interface RecordingSettingsProps {
@@ -52,23 +53,33 @@ export function RecordingSettings({
   onStart,
   hasRegionSelected,
 }: RecordingSettingsProps) {
-  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
+  const [micDevices, setMicDevices] = useState<AudioDeviceInfo[]>([])
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([])
   const [overlaysOpen, setOverlaysOpen] = useState(false)
 
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then((devices) => {
-      const mics = devices.filter((d) => d.kind === "audioinput")
-      setMicDevices(mics)
-      if (!config.micDeviceId && mics.length > 0) {
-        onChange({ ...config, micDeviceId: mics[0].deviceId })
-      }
-      const cams = devices.filter((d) => d.kind === "videoinput")
-      setCameraDevices(cams)
-      if (!config.cameraDeviceId && cams.length > 0) {
-        onChange({ ...config, cameraDeviceId: cams[0].deviceId })
-      }
-    })
+    listAudioDevices()
+      .then((mics) => {
+        setMicDevices(mics)
+        if (!config.micDeviceId && mics.length > 0) {
+          const def = mics.find((m) => m.isDefault) ?? mics[0]
+          onChange({ ...config, micDeviceId: def.id })
+        }
+      })
+      .catch(() => {})
+
+    if (navigator.mediaDevices?.enumerateDevices) {
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => {
+          const cams = devices.filter((d) => d.kind === "videoinput")
+          setCameraDevices(cams)
+          if (!config.cameraDeviceId && cams.length > 0) {
+            onChange({ ...config, cameraDeviceId: cams[0].deviceId })
+          }
+        })
+        .catch(() => {})
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -226,8 +237,8 @@ export function RecordingSettings({
                   </SelectTrigger>
                   <SelectContent>
                     {micDevices.map((d) => (
-                      <SelectItem key={d.deviceId} value={d.deviceId}>
-                        {d.label || d.deviceId.slice(0, 8)}
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
